@@ -1,0 +1,442 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>AcadGrant — Student Scholarship Monitoring &amp; Compliance System</title>
+    <meta
+      name="description"
+      content="Browser-based scholarship monitoring, grade verification, policy compliance evaluation, and renewal decision website powered by Supabase."
+    />
+    <meta property="og:title" content="AcadGrant — Student Scholarship Monitoring & Compliance System" />
+    <meta
+      property="og:description"
+      content="Browser-based scholarship monitoring, grade verification, policy compliance evaluation, and renewal decision website powered by Supabase."
+    />
+    <meta property="og:type" content="website" />
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link
+      href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;500;600&family=Plus+Jakarta+Sans:wght@400;600;700&family=Public+Sans:wght@400;500;600&display=swap"
+      rel="stylesheet"
+    />
+    <link rel="stylesheet" href="./styles.css" />
+    <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+  </head>
+  <body>
+    <header class="topbar">
+      <div class="topbar-inner">
+        <div class="brand">AcadGrant Compliance</div>
+        <div class="topbar-meta" id="header-user-info">Scholarship Office · AY 2026–2027</div>
+        <div class="topbar-actions">
+          <button type="button" id="btn-logout" class="btn btn-outline hidden">Sign Out</button>
+        </div>
+      </div>
+    </header>
+
+    <main class="container">
+      <!-- Authentication & Supabase Setup Screen -->
+      <section id="auth-section" class="auth-grid">
+        <div class="card">
+          <p class="kicker">Student Scholarship Monitoring &amp; Academic Compliance System</p>
+          <h1>Verify academic evidence, evaluate grant policies, and govern renewals.</h1>
+          <p class="muted">
+            Scholars submit semester academic summaries and supporting grade-document references. Scholarship Staff
+            verify evidence, evaluate compliance dynamically against Excellence Scholar and Access Scholar policy
+            records in Supabase, and record auditable renewal decisions.
+          </p>
+
+          <div class="notice" id="supabase-probe-status">Checking Supabase connection...</div>
+
+          <div id="schema-setup-box" class="setup-box hidden">
+            <h3>Supabase SQL Setup / Permissions Required</h3>
+            <p class="muted">
+              Your Supabase project is reachable, but tables or role <code>GRANT</code> permissions need to be
+              initialized. Run <code>supabase/setup_all.sql</code> in the Supabase SQL Editor, then click Re-check.
+            </p>
+            <div class="btn-row">
+              <button type="button" id="btn-copy-sql" class="btn btn-outline">Copy Setup SQL</button>
+              <button type="button" id="btn-recheck-db" class="btn btn-primary">Re-check Supabase</button>
+            </div>
+          </div>
+
+          <div class="divider"></div>
+          <h3>Synthetic Test Accounts (Supabase Auth)</h3>
+          <p class="muted">
+            Click an email below to pre-fill the sign-in form, or register the test account using the Create Account
+            tab. No passwords are stored in client code.
+          </p>
+          <div class="quick-emails" id="quick-email-list">
+            <button type="button" class="quick-email-btn" data-email="staff@acadgrant.edu">
+              <strong>Elena Santos</strong>
+              <span class="mono">staff@acadgrant.edu · Staff</span>
+            </button>
+            <button type="button" class="quick-email-btn" data-email="b01@acadgrant.edu">
+              <strong>Marco Villanueva (B01)</strong>
+              <span class="mono">b01@acadgrant.edu · Excellence</span>
+            </button>
+            <button type="button" class="quick-email-btn" data-email="b02@acadgrant.edu">
+              <strong>Camille Reyes (B02)</strong>
+              <span class="mono">b02@acadgrant.edu · Excellence</span>
+            </button>
+            <button type="button" class="quick-email-btn" data-email="b06@acadgrant.edu">
+              <strong>Daniel Cruz (B06)</strong>
+              <span class="mono">b06@acadgrant.edu · Access</span>
+            </button>
+          </div>
+        </div>
+
+        <div class="card">
+          <div class="segmented" role="tablist">
+            <button type="button" id="auth-tab-signin" class="seg-btn active">Sign In</button>
+            <button type="button" id="auth-tab-signup" class="seg-btn">Create Account</button>
+          </div>
+
+          <h2 id="auth-form-title">Sign in with Supabase Auth</h2>
+          <p class="muted" id="auth-form-subtitle">
+            Authenticate to access your role-isolated scholarship workspace enforced by PostgreSQL RLS.
+          </p>
+
+          <div id="auth-error" class="alert alert-error hidden" role="alert"></div>
+          <div id="auth-success" class="alert alert-success hidden" role="status"></div>
+
+          <form id="auth-form" class="form-stack">
+            <label id="signup-name-wrap" class="hidden">
+              <span>Full Name</span>
+              <input type="text" id="auth-fullname" placeholder="e.g. Marco Villanueva" />
+            </label>
+            <label>
+              <span>Institutional Email</span>
+              <input type="email" id="auth-email" required placeholder="b01@acadgrant.edu" />
+            </label>
+            <label>
+              <span>Password</span>
+              <input type="password" id="auth-password" required minlength="6" placeholder="Minimum 6 characters" />
+            </label>
+            <label id="signup-program-wrap" class="hidden">
+              <span>Scholarship Program (for new scholars)</span>
+              <select id="auth-program">
+                <option value="PROG-EXC">Excellence Scholar (Max GWA 2.00)</option>
+                <option value="PROG-ACC">Access Scholar (Max GWA 2.50)</option>
+              </select>
+            </label>
+            <button type="submit" id="auth-submit-btn" class="btn btn-primary btn-full">Sign In</button>
+          </form>
+        </div>
+      </section>
+
+      <!-- Authenticated Workspace -->
+      <section id="workspace-section" class="hidden">
+        <nav class="tabs" aria-label="Workspace sections">
+          <button type="button" class="tab active" data-tab="dashboard">Dashboard</button>
+          <button type="button" class="tab" data-tab="submit">Submit Grades</button>
+          <button type="button" class="tab" data-tab="scholars">Scholars &amp; Policies</button>
+          <button type="button" class="tab" data-tab="audit">Audit History</button>
+          <button type="button" class="tab" data-tab="analysis">Analysis (Part I)</button>
+          <button type="button" class="tab" data-tab="tests">Tests (TC01–TC10)</button>
+        </nav>
+
+        <div id="global-alert" class="alert hidden" role="alert"></div>
+
+        <!-- Dashboard Tab -->
+        <div id="tab-dashboard" class="tab-panel">
+          <div class="kpi-grid">
+            <div class="card kpi">
+              <span class="kpi-label" id="kpi-total-label">Total Assigned Scholars</span>
+              <strong class="kpi-value mono" id="kpi-total">0</strong>
+              <span class="kpi-sub">AY 2026–2027 Semester 1</span>
+            </div>
+            <div class="card kpi">
+              <span class="kpi-label">Pending Verification</span>
+              <strong class="kpi-value mono text-amber" id="kpi-pending">0</strong>
+              <span class="kpi-sub">Awaiting staff verification</span>
+            </div>
+            <div class="card kpi">
+              <span class="kpi-label">Compliant</span>
+              <strong class="kpi-value mono text-green" id="kpi-compliant">0</strong>
+              <span class="kpi-sub">Passed all policy checks</span>
+            </div>
+            <div class="card kpi">
+              <span class="kpi-label">With Deficiency</span>
+              <strong class="kpi-value mono text-red" id="kpi-deficient">0</strong>
+              <span class="kpi-sub">Flagged for staff review</span>
+            </div>
+          </div>
+
+          <div class="card filter-bar">
+            <input type="search" id="filter-search" placeholder="Search by Scholar ID (e.g. B01), Student No., or Name..." />
+            <select id="filter-ay" aria-label="Academic Year">
+              <option value="2026-2027">AY 2026-2027</option>
+              <option value="2027-2028">AY 2027-2028</option>
+              <option value="ALL">All Academic Years</option>
+            </select>
+            <select id="filter-sem" aria-label="Semester">
+              <option value="1">Semester 1</option>
+              <option value="2">Semester 2</option>
+              <option value="ALL">All Semesters</option>
+            </select>
+            <select id="filter-program" aria-label="Program">
+              <option value="ALL">All Programs</option>
+              <option value="PROG-EXC">Excellence Scholar</option>
+              <option value="PROG-ACC">Access Scholar</option>
+            </select>
+            <select id="filter-compliance" aria-label="Compliance">
+              <option value="ALL">All Compliance</option>
+              <option value="Compliant">Compliant</option>
+              <option value="With Deficiency">With Deficiency</option>
+              <option value="Not Evaluated">Not Evaluated</option>
+            </select>
+          </div>
+
+          <div class="card table-card">
+            <div class="card-header">
+              <h2>Semester Submissions &amp; Compliance Ledger</h2>
+              <span class="mono muted" id="submissions-count">0 records</span>
+            </div>
+            <div class="table-wrap">
+              <table>
+                <thead>
+                  <tr>
+                    <th>Scholar</th>
+                    <th>Program</th>
+                    <th>Term</th>
+                    <th class="num">GWA</th>
+                    <th class="num">Units</th>
+                    <th class="num">F / I / D</th>
+                    <th>Verification</th>
+                    <th>Compliance</th>
+                    <th>Renewal</th>
+                    <th class="num">Action</th>
+                  </tr>
+                </thead>
+                <tbody id="submissions-tbody"></tbody>
+              </table>
+            </div>
+          </div>
+        </div>
+
+        <!-- Submit Grades Tab -->
+        <div id="tab-submit" class="tab-panel hidden">
+          <div class="submit-layout">
+            <div class="card">
+              <h2>Submit Semester Academic Summary</h2>
+              <p class="muted">
+                Grading scale: 1.00 is highest, 3.00 is passing, 5.00 is failing. Duplicate (Scholar, AY, Semester)
+                submissions are rejected by the PostgreSQL unique constraint.
+              </p>
+              <form id="submit-form" class="form-grid">
+                <label id="submit-scholar-wrap">
+                  <span>Scholar ID</span>
+                  <input type="text" id="sub-scholar-code" required placeholder="e.g. B01" />
+                </label>
+                <label>
+                  <span>Academic Year</span>
+                  <select id="sub-ay">
+                    <option value="2026-2027">2026-2027</option>
+                    <option value="2027-2028">2027-2028</option>
+                  </select>
+                </label>
+                <label>
+                  <span>Semester</span>
+                  <select id="sub-sem">
+                    <option value="1">Semester 1</option>
+                    <option value="2">Semester 2</option>
+                    <option value="3">Midyear (3)</option>
+                  </select>
+                </label>
+                <label>
+                  <span>GWA (1.00–5.00)</span>
+                  <input type="number" id="sub-gwa" step="0.01" required value="1.85" />
+                </label>
+                <label>
+                  <span>Enrolled Units</span>
+                  <input type="number" id="sub-units" step="1" required value="18" />
+                </label>
+                <label>
+                  <span>Failed Subjects</span>
+                  <input type="number" id="sub-failed" step="1" required value="0" />
+                </label>
+                <label>
+                  <span>Incomplete (INC)</span>
+                  <input type="number" id="sub-inc" step="1" required value="0" />
+                </label>
+                <label>
+                  <span>Dropped Subjects</span>
+                  <input type="number" id="sub-drop" step="1" required value="0" />
+                </label>
+                <label class="full">
+                  <span>Supporting Grade-Document Reference</span>
+                  <input type="text" id="sub-evidence" required placeholder="e.g. REG-2026-B01-SEM2-CERT.pdf" />
+                </label>
+                <div class="full">
+                  <button type="submit" class="btn btn-primary">Submit Academic Summary</button>
+                </div>
+              </form>
+            </div>
+
+            <aside class="card" id="assigned-policy-aside">
+              <h3>Assigned Policy Reference</h3>
+              <div id="assigned-policy-details" class="muted">Select or sign in as a scholar to view thresholds.</div>
+            </aside>
+          </div>
+        </div>
+
+        <!-- Scholars & Policies Tab -->
+        <div id="tab-scholars" class="tab-panel hidden">
+          <div class="card table-card">
+            <div class="card-header">
+              <h2>Persisted Scholarship Programs (Supabase)</h2>
+            </div>
+            <div class="table-wrap">
+              <table>
+                <thead>
+                  <tr>
+                    <th>ID</th>
+                    <th>Program</th>
+                    <th class="num">Max GWA</th>
+                    <th class="num">Min Units</th>
+                    <th class="num">Failed</th>
+                    <th class="num">INC</th>
+                    <th class="num">Dropped</th>
+                    <th>Deadline (Asia/Manila)</th>
+                  </tr>
+                </thead>
+                <tbody id="programs-tbody"></tbody>
+              </table>
+            </div>
+          </div>
+
+          <div class="scholars-grid" id="staff-scholars-section">
+            <div class="card">
+              <h3>Register Scholar &amp; Assign Policy</h3>
+              <form id="register-scholar-form" class="form-stack">
+                <label>
+                  <span>Scholar ID</span>
+                  <input type="text" id="reg-code" required placeholder="B07" />
+                </label>
+                <label>
+                  <span>Student Number</span>
+                  <input type="text" id="reg-studno" required placeholder="2026-00107" />
+                </label>
+                <label>
+                  <span>Full Name</span>
+                  <input type="text" id="reg-fullname" required placeholder="Patricia Soriano" />
+                </label>
+                <label>
+                  <span>Institutional Email</span>
+                  <input type="email" id="reg-email" required placeholder="b07@acadgrant.edu" />
+                </label>
+                <label>
+                  <span>Assigned Program</span>
+                  <select id="reg-program">
+                    <option value="PROG-EXC">Excellence Scholar</option>
+                    <option value="PROG-ACC">Access Scholar</option>
+                  </select>
+                </label>
+                <button type="submit" class="btn btn-primary">Register Scholar</button>
+              </form>
+            </div>
+
+            <div class="card table-card">
+              <div class="card-header">
+                <h2>Assigned Scholars</h2>
+              </div>
+              <div class="table-wrap">
+                <table>
+                  <thead>
+                    <tr>
+                      <th>Scholar ID</th>
+                      <th>Student No.</th>
+                      <th>Name &amp; Email</th>
+                      <th>Program</th>
+                      <th>Award Status</th>
+                    </tr>
+                  </thead>
+                  <tbody id="scholars-tbody"></tbody>
+                </table>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <!-- Audit History Tab -->
+        <div id="tab-audit" class="tab-panel hidden">
+          <div class="card table-card">
+            <div class="card-header">
+              <h2>Verification, Evaluation &amp; Renewal Audit History</h2>
+            </div>
+            <div class="table-wrap">
+              <table>
+                <thead>
+                  <tr>
+                    <th>Timestamp (Asia/Manila)</th>
+                    <th>Scholar</th>
+                    <th>Actor</th>
+                    <th>Action</th>
+                    <th>Transition</th>
+                    <th>Notes</th>
+                  </tr>
+                </thead>
+                <tbody id="audit-tbody"></tbody>
+              </table>
+            </div>
+          </div>
+        </div>
+
+        <!-- Part I Analysis & Design Tab -->
+        <div id="tab-analysis" class="tab-panel hidden">
+          <div class="card" id="analysis-content"></div>
+        </div>
+
+        <!-- Functional Tests TC01-TC10 Tab -->
+        <div id="tab-tests" class="tab-panel hidden">
+          <div class="card">
+            <div class="card-header-inline">
+              <div>
+                <h2>Mandatory Functional Tests (TC01–TC10)</h2>
+                <p class="muted">
+                  Tests run directly against your live Supabase PostgreSQL schema, triggers, and RLS policies.
+                </p>
+              </div>
+              <div class="btn-row">
+                <button type="button" id="btn-probe-rls" class="btn btn-outline">Probe RLS Access Control</button>
+                <button type="button" id="btn-run-tc" class="btn btn-primary">Run Live Checks (B01–B06)</button>
+              </div>
+            </div>
+            <div id="rls-probe-output" class="notice hidden mono"></div>
+            <div class="table-wrap">
+              <table>
+                <thead>
+                  <tr>
+                    <th>Test ID</th>
+                    <th>Input / Action</th>
+                    <th>Expected Result</th>
+                    <th>Actual Result</th>
+                    <th>Status</th>
+                  </tr>
+                </thead>
+                <tbody id="tc-tbody"></tbody>
+              </table>
+            </div>
+          </div>
+        </div>
+      </section>
+    </main>
+
+    <!-- Submission Inspection Modal -->
+    <div id="detail-modal" class="modal hidden" role="dialog" aria-modal="true">
+      <div class="modal-card">
+        <div class="modal-header">
+          <div>
+            <div class="mono muted" id="modal-subtitle"></div>
+            <h2 id="modal-title">Submission Details</h2>
+          </div>
+          <button type="button" id="btn-close-modal" class="btn btn-outline">Close</button>
+        </div>
+        <div id="modal-body" class="modal-body"></div>
+      </div>
+    </div>
+
+    <script type="module" src="./app.js"></script>
+  </body>
+</html>
